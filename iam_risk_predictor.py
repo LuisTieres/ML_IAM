@@ -12,6 +12,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
+# Colunas categoricas que precisam de encoding
 COLUNAS_CATEGORICAS = [
     "cargo",
     "departamento",
@@ -20,6 +21,7 @@ COLUNAS_CATEGORICAS = [
     "criticidade"
 ]
 
+# Colunas numericas
 COLUNAS_NUMERICAS = [
     "tempo_empresa_meses",
     "acessos_ativos",
@@ -28,6 +30,7 @@ COLUNAS_NUMERICAS = [
     "violacoes_historicas"
 ]
 
+# Colunas booleanas (0 ou 1)
 COLUNAS_BOOLEANAS = [
     "conflito_sod",        # 1 = tem conflito de Segregacao de Funcoes
     "conformidade_ok"      # 1 = esta em conformidade
@@ -39,7 +42,6 @@ TARGET = "risco"  # valores: "Baixo", "Medio", "Alto"
 # Caminho para salvar o modelo treinado
 MODELO_PATH = "modelo_iam_risk.pkl"
 ENCODERS_PATH = "encoders_iam_risk.pkl"
-
 
 
 def carregar_dados(caminho_csv: str) -> pd.DataFrame:
@@ -58,43 +60,78 @@ def carregar_dados(caminho_csv: str) -> pd.DataFrame:
     return df
 
 
-def gerar_dados_sinteticos(n: int = 500, seed: int = 42) -> pd.DataFrame:
+
+def gerar_dados_sinteticos(n: int = 600, seed: int = 42) -> pd.DataFrame:
     """
-    Gera um dataset sintetico realista para treino e testes iniciais.
+    Gera um dataset sintetico balanceado (~200 amostras por classe).
     Substitua por dados reais quando disponiveis.
     """
     np.random.seed(seed)
 
-    cargos       = ["Analista Jr", "Analista Pl", "Analista Sr",
-                    "Coordenador", "Gerente", "Diretor",
-                    "Estagiario", "Consultor"]
     departamentos = ["TI", "Financeiro", "RH", "Juridico",
                      "Operacoes", "Comercial", "Auditoria", "Compliance"]
-    sistemas     = ["ERP SAP", "Core Bancario", "CRM Salesforce",
-                    "BI Tableau", "Active Directory", "AWS Console",
-                    "Folha de Pagamento", "Sistema Fiscal"]
-    tipos_acesso = ["Leitura", "Escrita", "Administrador",
-                    "Aprovador", "Auditor", "Super Usuario"]
-    criticidades = ["Baixa", "Media", "Alta", "Critica"]
+    sistemas      = ["ERP SAP", "Core Bancario", "CRM Salesforce",
+                     "BI Tableau", "Active Directory", "AWS Console",
+                     "Folha de Pagamento", "Sistema Fiscal"]
 
-    df = pd.DataFrame({
-        "cargo":               np.random.choice(cargos, n),
-        "departamento":        np.random.choice(departamentos, n),
-        "sistema":             np.random.choice(sistemas, n),
-        "tipo_acesso":         np.random.choice(tipos_acesso, n),
-        "criticidade":         np.random.choice(criticidades, n),
-        "tempo_empresa_meses": np.random.randint(1, 120, n),
-        "acessos_ativos":      np.random.randint(0, 30, n),
-        "aprovacoes_anteriores": np.random.randint(0, 20, n),
-        "revogacoes_anteriores": np.random.choice([0,0,0,1,2], n),
-        "violacoes_historicas":  np.random.choice([0,0,0,0,1,2,3], n),
-        "conflito_sod":         np.random.choice([0, 1], n, p=[0.8, 0.2]),
-        "conformidade_ok":      np.random.choice([0, 1], n, p=[0.1, 0.9]),
-    })
+    partes = []
 
+    # BAIXO RISCO — perfil seguro
+    n_baixo = n // 3
+    partes.append(pd.DataFrame({
+        "cargo": np.random.choice(["Analista Jr","Analista Pl","Analista Sr","Coordenador","Diretor"], n_baixo),
+        "departamento":        np.random.choice(departamentos, n_baixo),
+        "sistema":             np.random.choice(["BI Tableau","CRM Salesforce","Active Directory"], n_baixo),
+        "tipo_acesso":         np.random.choice(["Leitura","Auditor"], n_baixo),
+        "criticidade":         np.random.choice(["Baixa","Media"], n_baixo),
+        "tempo_empresa_meses": np.random.randint(12, 120, n_baixo),
+        "acessos_ativos":      np.random.randint(0, 10, n_baixo),
+        "aprovacoes_anteriores": np.random.randint(0, 10, n_baixo),
+        "revogacoes_anteriores": np.zeros(n_baixo, dtype=int),
+        "violacoes_historicas":  np.zeros(n_baixo, dtype=int),
+        "conflito_sod":         np.zeros(n_baixo, dtype=int),
+        "conformidade_ok":      np.ones(n_baixo, dtype=int),
+    }))
+
+    # MEDIO RISCO — perfil intermediario
+    n_medio = n // 3
+    partes.append(pd.DataFrame({
+        "cargo": np.random.choice(["Analista Sr","Coordenador","Gerente","Consultor","Diretor"], n_medio),
+        "departamento":        np.random.choice(departamentos, n_medio),
+        "sistema":             np.random.choice(sistemas, n_medio),
+        "tipo_acesso":         np.random.choice(["Escrita","Aprovador"], n_medio),
+        "criticidade":         np.random.choice(["Media","Alta"], n_medio),
+        "tempo_empresa_meses": np.random.randint(6, 60, n_medio),
+        "acessos_ativos":      np.random.randint(5, 20, n_medio),
+        "aprovacoes_anteriores": np.random.randint(0, 15, n_medio),
+        "revogacoes_anteriores": np.random.choice([0,0,1], n_medio),
+        "violacoes_historicas":  np.random.choice([0,0,1], n_medio),
+        "conflito_sod":         np.random.choice([0,0,1], n_medio),
+        "conformidade_ok":      np.random.choice([0,1,1], n_medio),
+    }))
+
+    # ALTO RISCO — perfil perigoso
+    n_alto = n - n_baixo - n_medio
+    partes.append(pd.DataFrame({
+        "cargo": np.random.choice(["Estagiario","Consultor","Analista Jr","Diretor"], n_alto),
+        "departamento":        np.random.choice(departamentos, n_alto),
+        "sistema":             np.random.choice(["Core Bancario","ERP SAP","Folha de Pagamento","AWS Console"], n_alto),
+        "tipo_acesso":         np.random.choice(["Administrador","Super Usuario"], n_alto),
+        "criticidade":         np.random.choice(["Alta","Critica"], n_alto),
+        "tempo_empresa_meses": np.random.randint(1, 12, n_alto),
+        "acessos_ativos":      np.random.randint(15, 30, n_alto),
+        "aprovacoes_anteriores": np.random.randint(0, 5, n_alto),
+        "revogacoes_anteriores": np.random.choice([0,1,2,3], n_alto),
+        "violacoes_historicas":  np.random.choice([0,1,2,3], n_alto),
+        "conflito_sod":         np.random.choice([0,1,1], n_alto),
+        "conformidade_ok":      np.random.choice([0,0,1], n_alto),
+    }))
+
+    df = pd.concat(partes, ignore_index=True)
+    df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
     df["risco"] = df.apply(_calcular_risco_sintetico, axis=1)
 
-    print(f"[OK] Dataset sintetico gerado: {n} amostras")
+    print(f"[OK] Dataset sintetico gerado: {len(df)} amostras")
     print(df["risco"].value_counts().to_string())
     return df
 
@@ -103,23 +140,30 @@ def _calcular_risco_sintetico(row) -> str:
     """Logica interna para rotular o risco no dataset sintetico."""
     score = 0
 
-    priv_map = {"Leitura": 5, "Auditor": 15, "Escrita": 25,
-                "Aprovador": 35, "Administrador": 55, "Super Usuario": 75}
-    crit_map = {"Baixa": 0, "Media": 10, "Alta": 20, "Critica": 35}
+    priv_map = {"Leitura": 5, "Auditor": 10, "Escrita": 20,
+                "Aprovador": 30, "Administrador": 50, "Super Usuario": 65}
+    crit_map = {"Baixa": 0, "Media": 8, "Alta": 18, "Critica": 30}
 
-    score += priv_map.get(row["tipo_acesso"], 20)
-    score += crit_map.get(row["criticidade"], 10)
-    score += 25 if row["conflito_sod"] else 0
-    score += row["violacoes_historicas"] * 8
-    score += row["revogacoes_anteriores"] * 6
-    score += 15 if row["tempo_empresa_meses"] < 6 else (8 if row["tempo_empresa_meses"] < 12 else 0)
-    score += 10 if row["acessos_ativos"] > 15 else 0
-    score += 12 if not row["conformidade_ok"] else 0
-    score += np.random.randint(-5, 6)  # ruido
+    score += priv_map.get(row["tipo_acesso"], 15)
+    score += crit_map.get(row["criticidade"], 8)
+    score += 20 if row["conflito_sod"]        else 0
+    score += 10 if not row["conformidade_ok"] else 0
+    score += row["violacoes_historicas"] * 7
+    score += row["revogacoes_anteriores"] * 5
+    score += 12 if row["tempo_empresa_meses"] < 6  else 0
+    score +=  6 if row["tempo_empresa_meses"] < 12 else 0
+    score +=  8 if row["acessos_ativos"] > 15      else 0
 
-    if score <= 30:
+    cargos_risco  = {"Estagiario", "Consultor", "Analista Jr"}
+    acessos_risco = {"Administrador", "Super Usuario", "Aprovador"}
+    if row["cargo"] in cargos_risco and row["tipo_acesso"] in acessos_risco:
+        score += 15
+
+    score += np.random.randint(-4, 5)
+
+    if score <= 25:
         return "Baixo"
-    elif score <= 70:
+    elif score <= 55:
         return "Medio"
     else:
         return "Alto"
@@ -133,11 +177,13 @@ def preprocessar(df: pd.DataFrame):
     df = df.copy()
     encoders = {}
 
+    # Encode categoricas
     for col in COLUNAS_CATEGORICAS:
         le = LabelEncoder()
         df[col] = le.fit_transform(df[col].astype(str))
         encoders[col] = le
 
+    # Encode target
     le_target = LabelEncoder()
     df[TARGET] = le_target.fit_transform(df[TARGET])
     encoders[TARGET] = le_target
@@ -148,7 +194,6 @@ def preprocessar(df: pd.DataFrame):
 
     print(f"[OK] Pre-processamento concluido. Features: {X.shape[1]} colunas")
     return X, y, encoders
-
 
 def treinar_modelo(X: pd.DataFrame, y: pd.Series):
     """
@@ -163,15 +208,17 @@ def treinar_modelo(X: pd.DataFrame, y: pd.Series):
         n_estimators=100,
         max_depth=15,
         min_samples_leaf=3,
-        class_weight="balanced",   
+        class_weight="balanced",   # lida com desbalanceamento de classes
         random_state=42,
         n_jobs=-1
     )
 
+    # Validacao cruzada 5-fold
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     scores_cv = cross_val_score(modelo, X_train, y_train, cv=cv, scoring="f1_macro")
     print(f"[CV] F1-Macro medio: {scores_cv.mean():.4f} (+/- {scores_cv.std():.4f})")
 
+    # Treino final
     modelo.fit(X_train, y_train)
 
     return modelo, X_test, y_test
@@ -200,11 +247,6 @@ def avaliar_modelo(modelo, X_test, y_test, encoders):
 
     return y_pred
 
-
-# =============================================================================
-# BLOCO 7 — IMPORTANCIA DAS FEATURES
-# =============================================================================
-
 def importancia_features(modelo, X: pd.DataFrame):
     """
     Exibe as features mais importantes para o modelo.
@@ -221,11 +263,6 @@ def importancia_features(modelo, X: pd.DataFrame):
         print(f"  {feat:<30} {barra} {val:.4f}")
 
     return importancias
-
-
-# =============================================================================
-# BLOCO 8 — PREDICAO PARA NOVA SOLICITACAO
-# =============================================================================
 
 def prever_risco(modelo, encoders, solicitacao: dict) -> dict:
     """
@@ -285,10 +322,6 @@ def prever_risco(modelo, encoders, solicitacao: dict) -> dict:
     return resultado
 
 
-# =============================================================================
-# BLOCO 9 — SALVAR E CARREGAR MODELO
-# =============================================================================
-
 def salvar_modelo(modelo, encoders):
     joblib.dump(modelo,   MODELO_PATH)
     joblib.dump(encoders, ENCODERS_PATH)
@@ -302,10 +335,6 @@ def carregar_modelo():
     print("[OK] Modelo e encoders carregados")
     return modelo, encoders
 
-
-# =============================================================================
-# BLOCO 10 — EXECUCAO PRINCIPAL
-# =============================================================================
 
 if __name__ == "__main__":
 

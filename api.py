@@ -5,6 +5,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import os
+from fastapi import FastAPI, HTTPException
 
 app = FastAPI(title="IAM Risk Predictor API", version="1.0.0")
 
@@ -92,3 +93,23 @@ def prever_risco(solicitacao: Solicitacao):
         "probabilidades": {c: round(float(p), 4) for c, p in zip(classes, proba)},
         "recomendacao":   recomendacao.get(risco, "REVISAR"),
     }
+@app.post("/prever-risco")
+def prever_risco(solicitacao: Solicitacao):
+    try:
+        df = pd.DataFrame([solicitacao.dict()])
+        for col in COLUNAS_CATEGORICAS:
+            le = encoders[col]
+            df[col] = le.transform(df[col].astype(str))
+        proba    = modelo.predict_proba(df[FEATURES])[0]
+        pred_idx = int(np.argmax(proba))
+        classes  = encoders["risco"].classes_
+        risco    = classes[pred_idx]
+        recomendacao = {"Baixo": "APROVAR", "Medio": "REVISAR", "Alto": "REJEITAR"}
+        return {
+            "risco":          risco,
+            "score":          int(round(float(max(proba)) * 100)),
+            "probabilidades": {c: round(float(p), 4) for c, p in zip(classes, proba)},
+            "recomendacao":   recomendacao.get(risco, "REVISAR"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -77,5 +77,5 @@ curl -X POST http://localhost:8000/prever-risco \
 Create a `.env` file in the frontend root directory:
 
 ```env
-VITE_ML_API_URL=http://localhost:8000
+VITE_ML_API_URL=https://luistieres-iam-risk-predictor.hf.space
 ```
