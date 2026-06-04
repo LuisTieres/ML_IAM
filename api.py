@@ -1,22 +1,20 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import numpy as np
 import pandas as pd
 import os
-from fastapi import FastAPI, HTTPException
 
 app = FastAPI(title="IAM Risk Predictor API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # em prod coloca só o dominio do front
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Carrega modelo ao subir (treina automaticamente se não existir)
 modelo   = None
 encoders = None
 
@@ -63,8 +61,8 @@ class Solicitacao(BaseModel):
     aprovacoes_anteriores: int
     revogacoes_anteriores: int
     violacoes_historicas: int
-    conflito_sod: int       # 0 ou 1
-    conformidade_ok: int    # 0 ou 1
+    conflito_sod: int
+    conformidade_ok: int
 
 
 @app.get("/")
@@ -74,42 +72,32 @@ def health():
 
 @app.post("/prever-risco")
 def prever_risco(solicitacao: Solicitacao):
-    df = pd.DataFrame([solicitacao.dict()])
-
-    for col in COLUNAS_CATEGORICAS:
-        le = encoders[col]
-        df[col] = le.transform(df[col].astype(str))
-
-    proba    = modelo.predict_proba(df[FEATURES])[0]
-    pred_idx = int(np.argmax(proba))
-    classes  = encoders["risco"].classes_
-    risco    = classes[pred_idx]
-
-    recomendacao = {"Baixo": "APROVAR", "Medio": "REVISAR", "Alto": "REJEITAR"}
-
-    return {
-        "risco":          risco,
-        "score":          int(round(float(max(proba)) * 100)),
-        "probabilidades": {c: round(float(p), 4) for c, p in zip(classes, proba)},
-        "recomendacao":   recomendacao.get(risco, "REVISAR"),
-    }
-@app.post("/prever-risco")
-def prever_risco(solicitacao: Solicitacao):
     try:
         df = pd.DataFrame([solicitacao.dict()])
+
         for col in COLUNAS_CATEGORICAS:
             le = encoders[col]
             df[col] = le.transform(df[col].astype(str))
+
         proba    = modelo.predict_proba(df[FEATURES])[0]
         pred_idx = int(np.argmax(proba))
-        classes  = encoders["risco"].classes_
+        classes  = list(encoders["risco"].classes_)
         risco    = classes[pred_idx]
+
+        # Score baseado no risco real (0=baixo, 50=médio, 100=alto)
+        prob_baixo = float(proba[classes.index("Baixo")]) if "Baixo" in classes else 0
+        prob_medio = float(proba[classes.index("Medio")]) if "Medio" in classes else 0
+        prob_alto  = float(proba[classes.index("Alto")])  if "Alto"  in classes else 0
+        score = int(round((prob_medio * 50) + (prob_alto * 100)))
+
         recomendacao = {"Baixo": "APROVAR", "Medio": "REVISAR", "Alto": "REJEITAR"}
+
         return {
             "risco":          risco,
-            "score":          int(round(float(max(proba)) * 100)),
+            "score":          score,
             "probabilidades": {c: round(float(p), 4) for c, p in zip(classes, proba)},
             "recomendacao":   recomendacao.get(risco, "REVISAR"),
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
