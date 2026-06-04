@@ -1,49 +1,52 @@
-# IAM Risk Predictor — Backend ML
+# IAM Risk Predictor — ML Backend
 
-## Instalação
+## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Treinar o modelo manualmente
+## Train the Model Manually
 
 ```bash
 python iam_risk_predictor.py
 ```
 
-Gera os arquivos:
-- `modelo_iam_risk.pkl`
-- `encoders_iam_risk.pkl`
+This generates the following files:
 
-## Subir a API
+* `modelo_iam_risk.pkl`
+* `encoders_iam_risk.pkl`
+
+## Start the API
 
 ```bash
 uvicorn api:app --reload --port 8000
 ```
 
-A API sobe em: http://localhost:8000
+The API will be available at:
 
-Se o modelo ainda não existir, ele é treinado automaticamente no startup.
+http://localhost:8000
+
+If the model files do not exist, the model will be trained automatically during startup.
 
 ## Endpoints
 
-| Método | Rota            | Descrição                        |
-|--------|-----------------|----------------------------------|
-| GET    | /               | Health check                     |
-| POST   | /prever-risco   | Recebe solicitação, retorna risco |
+| Method | Route         | Description                                  |
+| ------ | ------------- | -------------------------------------------- |
+| GET    | /             | Health check                                 |
+| POST   | /prever-risco | Receives an access request and predicts risk |
 
-## Exemplo de chamada
+## Example Request
 
 ```bash
 curl -X POST http://localhost:8000/prever-risco \
   -H "Content-Type: application/json" \
   -d '{
-    "cargo": "Estagiario",
-    "departamento": "Financeiro",
-    "sistema": "Core Bancario",
-    "tipo_acesso": "Administrador",
-    "criticidade": "Critica",
+    "cargo": "Intern",
+    "departamento": "Finance",
+    "sistema": "Core Banking",
+    "tipo_acesso": "Administrator",
+    "criticidade": "Critical",
     "tempo_empresa_meses": 3,
     "acessos_ativos": 12,
     "aprovacoes_anteriores": 1,
@@ -54,21 +57,25 @@ curl -X POST http://localhost:8000/prever-risco \
   }'
 ```
 
-## Resposta esperada
+## Expected Response
 
 ```json
 {
-  "risco": "Alto",
+  "risk": "High",
   "score": 91,
-  "probabilidades": { "Alto": 0.91, "Baixo": 0.03, "Medio": 0.06 },
-  "recomendacao": "REJEITAR"
+  "probabilities": {
+    "High": 0.91,
+    "Low": 0.03,
+    "Medium": 0.06
+  },
+  "recommendation": "REJECT"
 }
 ```
 
-## Variável de ambiente no front
+## Frontend Environment Variable
 
-Crie um `.env` na raiz do front:
+Create a `.env` file in the frontend root directory:
 
-```
+```env
 VITE_ML_API_URL=http://localhost:8000
 ```
