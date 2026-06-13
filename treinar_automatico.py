@@ -1,7 +1,3 @@
-# =============================================================================
-# IAM RISK PREDICTOR — Automacao de Treinamentos v2
-# =============================================================================
-
 import pandas as pd
 import numpy as np
 import joblib
@@ -24,9 +20,6 @@ from iam_risk_predictor import (
     MODELO_PATH, ENCODERS_PATH, TARGET
 )
 
-# =============================================================================
-# CONFIGURACOES
-# =============================================================================
 
 SEEDS    = [42, 123, 456, 789, 2024, 2025, 314, 99, 7, 777]
 TAMANHOS = [400, 600, 800, 1000]
@@ -61,9 +54,6 @@ MODELOS_CONFIG = [
 RESULTADOS_DIR = "resultados_treinamento"
 HISTORICO_PATH = os.path.join(RESULTADOS_DIR, "historico.json")
 
-# =============================================================================
-# AVALIACAO
-# =============================================================================
 
 def avaliar_completo(modelo, X_test, y_test, encoders):
     y_pred  = modelo.predict(X_test)
@@ -191,9 +181,6 @@ def barra_progresso(atual, total, largura=40):
     barra = "█" * cheio + "░" * (largura - cheio)
     return f"[{barra}] {atual}/{total} ({pct*100:.0f}%)"
 
-# =============================================================================
-# PIPELINE
-# =============================================================================
 
 def rodar_experimento(config, seed, n_amostras):
     df = gerar_dados_sinteticos(n=n_amostras, seed=seed)
@@ -216,9 +203,6 @@ def rodar_experimento(config, seed, n_amostras):
     feature_names = list(X.columns)
     return modelo, encoders, metricas, tempo, feature_names, X_train
 
-# =============================================================================
-# MAIN
-# =============================================================================
 
 def main():
     os.makedirs(RESULTADOS_DIR, exist_ok=True)
@@ -275,7 +259,6 @@ def main():
                     print(f"  Erro: {e}")
                     continue
 
-    # ── Ranking ────────────────────────────────────────────────────
     print("\n" + "=" * 60)
     print("  RANKING FINAL — TOP 10")
     print("=" * 60)

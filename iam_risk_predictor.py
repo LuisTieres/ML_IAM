@@ -208,7 +208,7 @@ def treinar_modelo(X: pd.DataFrame, y: pd.Series):
         n_estimators=100,
         max_depth=15,
         min_samples_leaf=3,
-        class_weight="balanced",   # lida com desbalanceamento de classes
+        class_weight="balanced",   
         random_state=42,
         n_jobs=-1
     )
@@ -342,25 +342,15 @@ if __name__ == "__main__":
     print("  IAM RISK PREDICTOR — Iniciando pipeline")
     print("=" * 60)
 
-    # 1. Gerar dados (troque por carregar_dados("seu_arquivo.csv") quando tiver dados reais)
     df = gerar_dados_sinteticos(n=500)
 
-    # 2. Pre-processar
     X, y, encoders = preprocessar(df)
-
-    # 3. Treinar
     modelo, X_test, y_test = treinar_modelo(X, y)
 
-    # 4. Avaliar
     avaliar_modelo(modelo, X_test, y_test, encoders)
-
-    # 5. Importancia das features
     importancia_features(modelo, X)
-
-    # 6. Salvar
     salvar_modelo(modelo, encoders)
 
-    # 7. Teste com uma nova solicitacao
     print("\n" + "=" * 60)
     print("  TESTE — Nova solicitacao de acesso")
     print("=" * 60)
